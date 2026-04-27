@@ -27,7 +27,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -153,11 +154,34 @@ h3 {
   border-bottom: 1px solid var(--line);
 }
 
-#filter {
-  width: min(390px, 100%);
+.resultCount {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) repeat(3, minmax(140px, 190px)) auto;
+  gap: 9px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  background: #fbfcfe;
+}
+
+.filters input,
+.filters select,
+.filters button {
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 8px 10px;
+  background: white;
+  color: var(--text);
+}
+
+.filters button {
+  cursor: pointer;
+  font-weight: 700;
 }
 
 .visualGrid {
@@ -331,6 +355,40 @@ h3 {
   font-weight: 800;
 }
 
+.pagesTable th button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+}
+
+.pagesTable th button::after {
+  content: "-";
+  color: #98a2b3;
+  font-size: 11px;
+}
+
+.pagesTable th button[data-direction="asc"]::after {
+  content: "^";
+  color: var(--brand);
+}
+
+.pagesTable th button[data-direction="desc"]::after {
+  content: "v";
+  color: var(--brand);
+}
+
+.pagesTable th button.activeSort {
+  color: var(--brand);
+}
+
 .pagesTable tbody tr:hover {
   background: #fbfcfe;
 }
@@ -445,11 +503,15 @@ summary {
   .visualGrid {
     grid-template-columns: 1fr;
   }
+
+  .filters {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media print {
   .actions,
-  #filter,
+  .filters,
   details:not([open]) {
     display: none;
   }

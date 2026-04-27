@@ -50,18 +50,35 @@
       <section class="section">
         <div class="sectionHeader">
           <h2>Lista de páginas</h2>
+          <span id="resultCount" class="resultCount">0 resultados</span>
+        </div>
+        <div class="filters" aria-label="Filtros da tabela">
           <input id="filter" type="search" placeholder="Filtrar por URL, campo ou erro">
+          <select id="statusFilter" aria-label="Filtrar por status">
+            <option value="all">Todos os status</option>
+            <option value="failed">Com falhas</option>
+            <option value="passed">Sem falhas</option>
+          </select>
+          <select id="frameworkFilter" aria-label="Filtrar por framework">
+            <option value="all">Todos os frameworks</option>
+          </select>
+          <select id="hiddenFilter" aria-label="Filtrar itens ocultos">
+            <option value="all">Todos ocultos</option>
+            <option value="withHidden">Com ocultos</option>
+            <option value="withoutHidden">Sem ocultos</option>
+          </select>
+          <button id="clearFilters" type="button">Limpar</button>
         </div>
         <div class="tableWrap">
           <table class="pagesTable">
             <thead>
               <tr>
-                <th>Página</th>
-                <th>Forms</th>
-                <th>Campos</th>
-                <th>Falhas</th>
-                <th>Ocultos</th>
-                <th>Frameworks</th>
+                <th><button type="button" data-sort="title">Página</button></th>
+                <th><button type="button" data-sort="forms">Forms</button></th>
+                <th><button type="button" data-sort="fields">Campos</button></th>
+                <th><button type="button" data-sort="failures">Falhas</button></th>
+                <th><button type="button" data-sort="hidden">Ocultos</button></th>
+                <th><button type="button" data-sort="frameworks">Frameworks</button></th>
                 <th>Detalhes</th>
               </tr>
             </thead>

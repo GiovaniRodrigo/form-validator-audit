@@ -12,12 +12,21 @@ const els = {
   pageBars: document.querySelector("#pageBars"),
   pagesList: document.querySelector("#pagesList"),
   errors: document.querySelector("#errors"),
+  resultCount: document.querySelector("#resultCount"),
   filter: document.querySelector("#filter"),
+  statusFilter: document.querySelector("#statusFilter"),
+  frameworkFilter: document.querySelector("#frameworkFilter"),
+  hiddenFilter: document.querySelector("#hiddenFilter"),
+  clearFilters: document.querySelector("#clearFilters"),
   downloadJson: document.querySelector("#downloadJson"),
   printReport: document.querySelector("#printReport")
 };
 
 let audit = null;
+let sortState = {
+  key: "failures",
+  direction: "desc"
+};
 
 const send = (message) => chrome.runtime.sendMessage(message);
 const rawText = (value) => String(value ?? "");
@@ -78,6 +87,19 @@ const pageStats = (page) => {
   };
 };
 
+const sortValue = (page, key) => {
+  const stats = pageStats(page);
+  const values = {
+    title: pageLabel(page).toLowerCase(),
+    forms: page.forms.length,
+    fields: stats.fields,
+    failures: stats.failures,
+    hidden: stats.hidden,
+    frameworks: page.frameworkHints.join(", ").toLowerCase()
+  };
+  return values[key] ?? "";
+};
+
 const pageMatches = (page, term) => {
   if (!term) return true;
   const haystack = [
@@ -91,6 +113,33 @@ const pageMatches = (page, term) => {
     .join(" ")
     .toLowerCase();
   return haystack.includes(term.toLowerCase());
+};
+
+const pagePassesFilters = (page) => {
+  const stats = pageStats(page);
+  const status = els.statusFilter.value;
+  const framework = els.frameworkFilter.value;
+  const hidden = els.hiddenFilter.value;
+
+  if (!pageMatches(page, els.filter.value.trim())) return false;
+  if (status === "failed" && stats.failures === 0) return false;
+  if (status === "passed" && stats.failures > 0) return false;
+  if (framework !== "all" && !page.frameworkHints.includes(framework)) return false;
+  if (hidden === "withHidden" && stats.hidden === 0) return false;
+  if (hidden === "withoutHidden" && stats.hidden > 0) return false;
+  return true;
+};
+
+const sortedPages = (pages) => {
+  const direction = sortState.direction === "asc" ? 1 : -1;
+  return [...pages].sort((a, b) => {
+    const aValue = sortValue(a, sortState.key);
+    const bValue = sortValue(b, sortState.key);
+    if (typeof aValue === "number" && typeof bValue === "number") {
+      return (aValue - bValue) * direction;
+    }
+    return String(aValue).localeCompare(String(bValue), "pt-BR", { numeric: true }) * direction;
+  });
 };
 
 const badge = (label, kind = "") => `<span class="badge ${kind}">${text(label)}</span>`;
@@ -115,6 +164,14 @@ const renderSummary = () => {
     <div class="overviewLine"><span>Frameworks</span><strong>${text(frameworks)}</strong></div>
     <div class="overviewLine"><span>Botões/links</span><strong>${summary.linksAndButtons || 0}</strong></div>
     <div class="overviewLine"><span>Limite</span><strong>${audit.limits?.maxPages || 0} páginas · profundidade ${audit.limits?.maxDepth || 0}</strong></div>
+  `;
+};
+
+const renderFilterOptions = () => {
+  const frameworks = [...new Set((audit.pages || []).flatMap((page) => page.frameworkHints))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  els.frameworkFilter.innerHTML = `
+    <option value="all">Todos os frameworks</option>
+    ${frameworks.map((item) => `<option value="${text(item)}">${text(item)}</option>`).join("")}
   `;
 };
 
@@ -212,11 +269,21 @@ const renderPageRow = (page) => {
 };
 
 const renderPages = () => {
-  const term = els.filter.value.trim();
-  const pages = (audit.pages || []).filter((page) => pageMatches(page, term));
+  const pages = sortedPages((audit.pages || []).filter(pagePassesFilters));
+  els.resultCount.textContent = `${pages.length} de ${(audit.pages || []).length} página(s)`;
+  updateSortIndicators();
   els.pagesList.innerHTML = pages.length
     ? pages.map(renderPageRow).join("")
     : `<tr><td colspan="7" class="empty">Nenhuma página corresponde ao filtro.</td></tr>`;
+};
+
+const updateSortIndicators = () => {
+  document.querySelectorAll("[data-sort]").forEach((button) => {
+    const active = button.dataset.sort === sortState.key;
+    button.classList.toggle("activeSort", active);
+    button.dataset.direction = active ? sortState.direction : "";
+    button.setAttribute("aria-sort", active ? (sortState.direction === "asc" ? "ascending" : "descending") : "none");
+  });
 };
 
 const renderErrors = () => {
@@ -255,12 +322,40 @@ const loadAudit = async () => {
   }
 
   renderSummary();
+  renderFilterOptions();
   renderCharts();
   renderPages();
   renderErrors();
 };
 
+const resetFilters = () => {
+  els.filter.value = "";
+  els.statusFilter.value = "all";
+  els.frameworkFilter.value = "all";
+  els.hiddenFilter.value = "all";
+  renderPages();
+};
+
+document.querySelectorAll("[data-sort]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const key = button.dataset.sort;
+    if (sortState.key === key) {
+      sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
+    } else {
+      sortState = {
+        key,
+        direction: ["title", "frameworks"].includes(key) ? "asc" : "desc"
+      };
+    }
+    renderPages();
+  });
+});
+
 els.filter.addEventListener("input", renderPages);
+els.statusFilter.addEventListener("change", renderPages);
+els.frameworkFilter.addEventListener("change", renderPages);
+els.hiddenFilter.addEventListener("change", renderPages);
+els.clearFilters.addEventListener("click", resetFilters);
 els.downloadJson.addEventListener("click", downloadJson);
 els.printReport.addEventListener("click", () => window.print());
 
