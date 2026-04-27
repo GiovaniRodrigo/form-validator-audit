@@ -11,7 +11,7 @@ Extensão Chrome em Manifest V3 para rastrear páginas de um domínio e gerar re
 - Testa valores inválidos e válidos comuns por tipo de campo sem submeter o formulário.
 - Inclui heurísticas para Filament, Livewire, Laravel, React, Vue, Angular, Alpine.js e HTMX.
 - Exporta relatório completo em JSON pelo popup.
-- Abre o relatório no navegador em uma página legível, com resumo, filtros, falhas e opção de impressão.
+- Abre o relatório no navegador em uma página resumida, com gráficos, tabela filtrável, detalhes expansíveis e opção de impressão.
 
 ## Como usar
 

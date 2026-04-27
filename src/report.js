@@ -7,6 +7,9 @@ const els = {
   failed: document.querySelector("#failed"),
   hidden: document.querySelector("#hidden"),
   overview: document.querySelector("#overview"),
+  testChart: document.querySelector("#testChart"),
+  testChartLabel: document.querySelector("#testChartLabel"),
+  pageBars: document.querySelector("#pageBars"),
   pagesList: document.querySelector("#pagesList"),
   errors: document.querySelector("#errors"),
   filter: document.querySelector("#filter"),
@@ -17,7 +20,6 @@ const els = {
 let audit = null;
 
 const send = (message) => chrome.runtime.sendMessage(message);
-
 const rawText = (value) => String(value ?? "");
 
 const text = (value) =>
@@ -37,6 +39,16 @@ const safeUrl = (value) => {
   }
 };
 
+const pageLabel = (page) => {
+  if (page.title) return page.title;
+  try {
+    const path = new URL(page.url).pathname;
+    return path === "/" ? page.url : path;
+  } catch {
+    return page.url || "Página";
+  }
+};
+
 const formatDate = (value) => {
   if (!value) return "Não informado";
   return new Intl.DateTimeFormat("pt-BR", {
@@ -45,10 +57,26 @@ const formatDate = (value) => {
   }).format(new Date(value));
 };
 
+const allFields = (page) => [
+  ...page.forms.flatMap((form) => form.fields),
+  ...page.orphanFields
+];
+
 const allTests = (page) => [
   ...page.forms.flatMap((form) => form.tests.flatMap((test) => test.cases.map((item) => ({ ...item, field: test.field })))),
   ...page.orphanFields.flatMap((field) => (field.tests || []).map((item) => ({ ...item, field: field.label })))
 ];
+
+const pageStats = (page) => {
+  const fields = allFields(page);
+  const tests = allTests(page);
+  return {
+    fields: fields.length,
+    failures: tests.filter((test) => !test.passed).length,
+    hidden: fields.filter((field) => field.hidden).length + page.hiddenComponents.length,
+    links: page.navigationTargets.length
+  };
+};
 
 const pageMatches = (page, term) => {
   if (!term) return true;
@@ -56,7 +84,7 @@ const pageMatches = (page, term) => {
     page.title,
     page.url,
     ...page.frameworkHints,
-    ...page.forms.flatMap((form) => form.fields.flatMap((field) => [field.label, field.name, field.type, field.selector])),
+    ...allFields(page).flatMap((field) => [field.label, field.name, field.type, field.selector]),
     ...allTests(page).flatMap((test) => [test.field, test.case, test.message, test.actual])
   ]
     .map(rawText)
@@ -65,148 +93,137 @@ const pageMatches = (page, term) => {
   return haystack.includes(term.toLowerCase());
 };
 
-const badge = (label, kind = "") => `<span class="badge ${kind}">${label}</span>`;
+const badge = (label, kind = "") => `<span class="badge ${kind}">${text(label)}</span>`;
 
 const renderSummary = () => {
   const summary = audit.summary || {};
+  const hiddenTotal = (summary.hiddenFields || 0) + (summary.hiddenComponents || 0);
+
   els.pages.textContent = summary.pages || 0;
   els.forms.textContent = summary.forms || 0;
   els.fields.textContent = summary.fields || 0;
   els.failed.textContent = summary.failedTests || 0;
-  els.hidden.textContent = (summary.hiddenFields || 0) + (summary.hiddenComponents || 0);
+  els.hidden.textContent = hiddenTotal;
 
   els.subtitle.textContent = `${audit.origin || audit.rootUrl} · iniciado em ${formatDate(audit.startedAt)} · finalizado em ${formatDate(audit.finishedAt)}`;
   els.statusBadge.textContent = audit.status === "completed" ? "Concluído" : audit.status === "running" ? "Em execução" : "Pronto";
   els.statusBadge.className = `badge ${audit.status === "completed" ? "ok" : audit.status === "running" ? "warn" : ""}`.trim();
 
-  const frameworks = summary.frameworks?.length ? summary.frameworks.join(", ") : "Nenhum framework identificado por heurística";
-  const failedText = summary.failedTests ? `${summary.failedTests} teste(s) divergiram do esperado` : "Nenhum teste com falha detectado";
+  const frameworks = summary.frameworks?.length ? summary.frameworks.join(", ") : "Não identificado";
   els.overview.innerHTML = `
-    <div class="overviewItem"><strong>Domínio</strong><span>${text(audit.origin || audit.rootUrl)}</span></div>
-    <div class="overviewItem"><strong>Frameworks prováveis</strong><span>${frameworks}</span></div>
-    <div class="overviewItem"><strong>Resultado dos testes</strong><span>${failedText}</span></div>
-    <div class="overviewItem"><strong>Limites usados</strong><span>${audit.limits?.maxPages || 0} páginas, profundidade ${audit.limits?.maxDepth || 0}</span></div>
+    <div class="overviewLine"><span>Domínio</span><strong>${text(audit.origin || audit.rootUrl)}</strong></div>
+    <div class="overviewLine"><span>Frameworks</span><strong>${text(frameworks)}</strong></div>
+    <div class="overviewLine"><span>Botões/links</span><strong>${summary.linksAndButtons || 0}</strong></div>
+    <div class="overviewLine"><span>Limite</span><strong>${audit.limits?.maxPages || 0} páginas · profundidade ${audit.limits?.maxDepth || 0}</strong></div>
   `;
 };
 
-const renderFieldRows = (fields, testsBySelector) => {
-  if (!fields.length) return `<p class="empty">Nenhum campo encontrado neste bloco.</p>`;
-  const rows = fields.map((field) => {
-    const cases = testsBySelector.get(field.selector) || [];
-    const failed = cases.filter((item) => !item.passed);
-    const result = failed.length ? badge(`${failed.length} falha(s)`, "fail") : badge("ok", "ok");
-    const rules = [
-      field.required ? "obrigatório" : "",
-      field.hidden ? "oculto" : "",
-      field.readonly ? "somente leitura" : "",
-      field.disabled ? "desabilitado" : "",
-      field.minlength ? `min ${field.minlength}` : "",
-      field.maxlength ? `max ${field.maxlength}` : "",
-      field.pattern ? "pattern" : ""
-    ].filter(Boolean);
-    return `
-      <tr>
-        <td><strong>${text(field.label)}</strong><br><span>${text(field.name || field.id || field.selector)}</span></td>
-        <td>${text(field.type)}</td>
-        <td>${rules.length ? rules.map((item) => badge(item)).join(" ") : badge("sem regra")}</td>
-        <td>${result}</td>
-      </tr>
-    `;
-  });
-  return `
-    <table class="fieldTable">
-      <thead><tr><th>Campo</th><th>Tipo</th><th>Regras</th><th>Testes</th></tr></thead>
-      <tbody>${rows.join("")}</tbody>
-    </table>
-  `;
-};
+const renderCharts = () => {
+  const summary = audit.summary || {};
+  const totalTests = summary.tests || 0;
+  const failed = summary.failedTests || 0;
+  const passed = Math.max(totalTests - failed, 0);
+  const failedPercent = totalTests ? Math.round((failed / totalTests) * 100) : 0;
 
-const renderFailures = (page) => {
-  const failures = allTests(page).filter((test) => !test.passed);
-  if (!failures.length) return "";
-  return `
-    <div class="formBlock">
-      <p class="blockTitle">Falhas encontradas</p>
-      <ul class="smallList">
-        ${failures.slice(0, 30).map((test) => `
-          <li><strong>${text(test.field)}:</strong> ${text(test.case)} esperava ${text(test.expected)}, recebeu ${text(test.actual)}. ${text(test.message)}</li>
-        `).join("")}
-      </ul>
-    </div>
-  `;
-};
+  els.testChart.style.setProperty("--fail", `${failedPercent}%`);
+  els.testChart.innerHTML = `<strong>${failedPercent}%</strong><span>falhas</span>`;
+  els.testChartLabel.textContent = `${passed} corretos · ${failed} com falha · ${totalTests} testes`;
 
-const renderPage = (page) => {
-  const testsBySelector = new Map();
-  page.forms.forEach((form) => form.tests.forEach((test) => testsBySelector.set(test.selector, test.cases)));
-  page.orphanFields.forEach((field) => testsBySelector.set(field.selector, field.tests || []));
-  const failures = allTests(page).filter((test) => !test.passed).length;
+  const rows = (audit.pages || [])
+    .map((page) => ({ page, stats: pageStats(page) }))
+    .sort((a, b) => b.stats.failures - a.stats.failures || b.stats.fields - a.stats.fields)
+    .slice(0, 8);
+  const max = Math.max(...rows.map((row) => row.stats.fields + row.stats.failures + row.stats.hidden), 1);
 
-  const forms = page.forms.map((form) => `
-    <div class="formBlock">
-      <p class="blockTitle">Formulário ${form.name || form.id || form.index + 1} · ${form.method} · ${text(form.action)}</p>
-      ${renderFieldRows(form.fields, testsBySelector)}
-    </div>
-  `).join("");
-
-  const orphan = page.orphanFields.length ? `
-    <div class="formBlock">
-      <p class="blockTitle">Campos fora de formulário</p>
-      ${renderFieldRows(page.orphanFields, testsBySelector)}
-    </div>
-  ` : "";
-
-  const hidden = page.hiddenComponents.length ? `
-    <div class="hiddenBlock">
-      <p class="blockTitle">Componentes ocultos mais relevantes</p>
-      <ul class="smallList">
-        ${page.hiddenComponents.slice(0, 12).map((item) => `<li>${text(item.tag)} · ${text(item.name || item.type || item.selector)} · ${text(item.reason)}</li>`).join("")}
-      </ul>
-    </div>
-  ` : "";
-
-  const links = page.navigationTargets.length ? `
-    <div class="linkBlock">
-      <p class="blockTitle">Botões e links que podem levar a formulários</p>
-      <ul class="smallList">
-        ${page.navigationTargets.slice(0, 12).map((item) => `<li>${text(item.text || item.tag)} · ${text(item.url)}</li>`).join("")}
-      </ul>
-    </div>
-  ` : "";
-
-  return `
-    <article class="pageCard">
-      <div class="pageHead">
-        <h3>${text(page.title || "Página sem título")}</h3>
-        <a href="${safeUrl(page.url)}" target="_blank" rel="noreferrer">${text(page.url)}</a>
-        <div class="meta">
-          ${badge(`${page.forms.length} forms`)}
-          ${badge(`${page.orphanFields.length} campos soltos`)}
-          ${badge(`${page.hiddenComponents.length} ocultos`, page.hiddenComponents.length ? "warn" : "")}
-          ${badge(`${failures} falhas`, failures ? "fail" : "ok")}
-          ${page.frameworkHints.map((item) => badge(item)).join("")}
+  els.pageBars.innerHTML = rows.length
+    ? rows.map(({ page, stats }) => {
+      const total = stats.fields + stats.failures + stats.hidden;
+      const width = Math.max((total / max) * 100, 4);
+      const label = pageLabel(page);
+      return `
+        <div class="barRow">
+          <span title="${text(page.url)}">${text(label)}</span>
+          <div class="barTrack"><i style="width: ${width}%"></i></div>
+          <strong>${total}</strong>
         </div>
-      </div>
-      ${renderFailures(page)}
-      ${forms || ""}
-      ${orphan}
-      ${hidden}
-      ${links}
-    </article>
+      `;
+    }).join("")
+    : `<p class="empty compact">Sem páginas para exibir.</p>`;
+};
+
+const compactFailures = (page) => {
+  const failures = allTests(page).filter((test) => !test.passed).slice(0, 8);
+  if (!failures.length) return `<p class="muted">Sem falhas nos testes client-side.</p>`;
+  return `
+    <ul class="miniList">
+      ${failures.map((test) => `<li><strong>${text(test.field)}:</strong> ${text(test.case)} · esperado ${text(test.expected)}, obtido ${text(test.actual)} ${test.message ? `· ${text(test.message)}` : ""}</li>`).join("")}
+    </ul>
+  `;
+};
+
+const compactFields = (page) => {
+  const fields = allFields(page).slice(0, 16);
+  if (!fields.length) return `<p class="muted">Nenhum campo encontrado.</p>`;
+  return `
+    <div class="fieldChips">
+      ${fields.map((field) => badge(`${field.label || field.name || field.type} · ${field.type}`, field.hidden ? "warn" : "")).join("")}
+    </div>
+  `;
+};
+
+const renderPageRow = (page) => {
+  const stats = pageStats(page);
+  const failureKind = stats.failures ? "fail" : "ok";
+  const title = page.title || "Página sem título";
+  const frameworks = page.frameworkHints.length ? page.frameworkHints.map((item) => badge(item)).join("") : badge("nenhum");
+
+  return `
+    <tr>
+      <td class="urlCell">
+        <strong>${text(title)}</strong>
+        <a href="${safeUrl(page.url)}" target="_blank" rel="noreferrer">${text(page.url)}</a>
+      </td>
+      <td>${page.forms.length}</td>
+      <td>${stats.fields}</td>
+      <td>${badge(stats.failures, failureKind)}</td>
+      <td>${badge(stats.hidden, stats.hidden ? "warn" : "")}</td>
+      <td><div class="chipLine">${frameworks}</div></td>
+      <td>
+        <details>
+          <summary>Ver</summary>
+          <div class="detailGrid">
+            <section>
+              <h3>Campos</h3>
+              ${compactFields(page)}
+            </section>
+            <section>
+              <h3>Falhas</h3>
+              ${compactFailures(page)}
+            </section>
+            <section>
+              <h3>Navegação</h3>
+              <p class="muted">${stats.links} botão(ões)/link(s) com possível redirecionamento interno.</p>
+            </section>
+          </div>
+        </details>
+      </td>
+    </tr>
   `;
 };
 
 const renderPages = () => {
   const term = els.filter.value.trim();
   const pages = (audit.pages || []).filter((page) => pageMatches(page, term));
-  els.pagesList.innerHTML = pages.length ? pages.map(renderPage).join("") : `<p class="empty">Nenhuma página corresponde ao filtro.</p>`;
+  els.pagesList.innerHTML = pages.length
+    ? pages.map(renderPageRow).join("")
+    : `<tr><td colspan="7" class="empty">Nenhuma página corresponde ao filtro.</td></tr>`;
 };
 
 const renderErrors = () => {
   const errors = audit.errors || [];
   els.errors.innerHTML = errors.length
     ? errors.map((item) => `<div class="errorItem"><strong>${text(item.url)}</strong><span>${text(item.message)} · ${formatDate(item.at)}</span></div>`).join("")
-    : `<p class="empty">Nenhum erro de rastreamento registrado.</p>`;
+    : `<p class="empty compact">Nenhum erro de rastreamento registrado.</p>`;
 };
 
 const downloadJson = () => {
@@ -233,11 +250,12 @@ const loadAudit = async () => {
 
   if (!audit) {
     els.subtitle.textContent = "Nenhum relatório encontrado. Execute uma auditoria pelo popup da extensão.";
-    els.pagesList.innerHTML = `<p class="empty">Nenhum dado disponível.</p>`;
+    els.pagesList.innerHTML = `<tr><td colspan="7" class="empty">Nenhum dado disponível.</td></tr>`;
     return;
   }
 
   renderSummary();
+  renderCharts();
   renderPages();
   renderErrors();
 };

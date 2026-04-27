@@ -28,20 +28,46 @@
         <article><strong id="hidden">0</strong><span>Itens ocultos</span></article>
       </section>
 
-      <section class="section">
+      <section class="section dashboard">
         <div class="sectionHeader">
-          <h2>Leitura Geral</h2>
+          <h2>Resumo Visual</h2>
           <span id="statusBadge" class="badge">Pronto</span>
         </div>
-        <div id="overview" class="overview"></div>
+        <div class="visualGrid">
+          <div class="chartPanel">
+            <h3>Resultado dos testes</h3>
+            <div id="testChart" class="donut" aria-label="Gráfico de testes"></div>
+            <p id="testChartLabel" class="chartLabel">0 testes</p>
+          </div>
+          <div class="chartPanel">
+            <h3>Distribuição por página</h3>
+            <div id="pageBars" class="bars"></div>
+          </div>
+          <div id="overview" class="overview"></div>
+        </div>
       </section>
 
       <section class="section">
         <div class="sectionHeader">
-          <h2>Páginas e Formulários</h2>
+          <h2>Lista de páginas</h2>
           <input id="filter" type="search" placeholder="Filtrar por URL, campo ou erro">
         </div>
-        <div id="pagesList" class="pagesList"></div>
+        <div class="tableWrap">
+          <table class="pagesTable">
+            <thead>
+              <tr>
+                <th>Página</th>
+                <th>Forms</th>
+                <th>Campos</th>
+                <th>Falhas</th>
+                <th>Ocultos</th>
+                <th>Frameworks</th>
+                <th>Detalhes</th>
+              </tr>
+            </thead>
+            <tbody id="pagesList"></tbody>
+          </table>
+        </div>
       </section>
 
       <section class="section">
