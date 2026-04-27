@@ -162,7 +162,7 @@ h3 {
 
 .filters {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) repeat(3, minmax(140px, 190px)) auto;
+  grid-template-columns: minmax(220px, 1fr) repeat(4, minmax(130px, 180px)) auto;
   gap: 9px;
   padding: 12px 14px;
   border-bottom: 1px solid var(--line);
@@ -455,6 +455,97 @@ summary {
   overflow-wrap: anywhere;
 }
 
+.printThumb {
+  display: block;
+  overflow: hidden;
+  max-width: 420px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  cursor: zoom-in;
+}
+
+.printThumb img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.modalOpen {
+  overflow: hidden;
+}
+
+.modal[hidden] {
+  display: none;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 10px;
+}
+
+.modalBackdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, .62);
+}
+
+.modalPanel {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: 98vw;
+  height: 96vh;
+  overflow: hidden;
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 28px 70px rgba(15, 23, 42, .34);
+}
+
+.modalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.modalHeader p {
+  margin-top: 4px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.modalHeader button {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 11px;
+  background: white;
+  cursor: pointer;
+}
+
+.modalBody {
+  overflow: auto;
+  padding: 10px;
+  background: #111827;
+}
+
+.modalBody img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  border-radius: 6px;
+  background: white;
+}
+
 .errors {
   display: grid;
   gap: 8px;
@@ -486,6 +577,10 @@ summary {
   padding: 0;
 }
 
+.printLayout {
+  display: none;
+}
+
 @media (max-width: 940px) {
   .topbar,
   .sectionHeader {
@@ -510,17 +605,138 @@ summary {
 }
 
 @media print {
-  .actions,
-  .filters,
-  details:not([open]) {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  .topbar,
+  .layout,
+  .modal {
     display: none;
   }
 
   body {
     background: white;
+    color: #111827;
+    font-size: 11px;
   }
 
-  .layout {
-    max-width: none;
+  .printLayout {
+    display: block;
+  }
+
+  .printHeader {
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #111827;
+  }
+
+  .printHeader p {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .printHeader h1 {
+    margin: 2px 0 6px;
+    font-size: 22px;
+  }
+
+  .printHeader div {
+    margin-top: 2px;
+    overflow-wrap: anywhere;
+  }
+
+  .printSection,
+  .printPage {
+    margin-bottom: 14px;
+  }
+
+  .printPage {
+    break-before: page;
+  }
+
+  .printSection h2,
+  .printPage h2 {
+    margin: 0 0 7px;
+    font-size: 16px;
+  }
+
+  .printSubsection {
+    margin-top: 10px;
+    break-inside: avoid;
+  }
+
+  .printSubsection h3 {
+    margin: 0 0 5px;
+    font-size: 13px;
+  }
+
+  .printSubsection h4 {
+    margin: 8px 0 4px;
+    font-size: 11px;
+  }
+
+  .printUrl,
+  .printMuted,
+  .printTable span {
+    color: #4b5563;
+    overflow-wrap: anywhere;
+  }
+
+  .printTable {
+    width: 100%;
+    margin-bottom: 8px;
+    border-collapse: collapse;
+    break-inside: avoid;
+  }
+
+  .printTable th,
+  .printTable td {
+    padding: 5px 6px;
+    border: 1px solid #d1d5db;
+    text-align: left;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+  }
+
+  .printTable th {
+    background: #f3f4f6;
+    font-weight: 800;
+  }
+
+  .printSummaryTable th {
+    width: 18%;
+  }
+
+  .printList {
+    display: grid;
+    gap: 3px;
+    margin: 0 0 8px;
+    padding-left: 16px;
+  }
+
+  .printList li {
+    overflow-wrap: anywhere;
+  }
+
+  .printFigure {
+    margin: 0;
+    break-inside: avoid;
+  }
+
+  .printFigure img {
+    display: block;
+    width: 100%;
+    max-height: 230mm;
+    object-fit: contain;
+    border: 1px solid #d1d5db;
+  }
+
+  .printFigure figcaption {
+    margin-top: 4px;
+    color: #4b5563;
+    font-size: 10px;
   }
 }

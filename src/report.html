@@ -67,6 +67,11 @@
             <option value="withHidden">Com ocultos</option>
             <option value="withoutHidden">Sem ocultos</option>
           </select>
+          <select id="printFilter" aria-label="Filtrar por print">
+            <option value="all">Todos prints</option>
+            <option value="withPrint">Com print</option>
+            <option value="withoutPrint">Sem print</option>
+          </select>
           <button id="clearFilters" type="button">Limpar</button>
         </div>
         <div class="tableWrap">
@@ -94,6 +99,24 @@
         <div id="errors" class="errors"></div>
       </section>
     </main>
+
+    <div id="printModal" class="modal" hidden>
+      <div class="modalBackdrop" data-close-modal></div>
+      <section class="modalPanel" role="dialog" aria-modal="true" aria-labelledby="printModalTitle">
+        <header class="modalHeader">
+          <div>
+            <h2 id="printModalTitle">Print de validação</h2>
+            <p id="printModalMeta"></p>
+          </div>
+          <button id="closePrintModal" type="button" aria-label="Fechar">Fechar</button>
+        </header>
+        <div class="modalBody">
+          <img id="printModalImage" alt="Print dos erros de validação">
+        </div>
+      </section>
+    </div>
+
+    <section id="printLayout" class="printLayout" aria-label="Layout de impressão"></section>
 
     <script src="report.js" type="module"></script>
   </body>

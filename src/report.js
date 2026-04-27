@@ -17,9 +17,15 @@ const els = {
   statusFilter: document.querySelector("#statusFilter"),
   frameworkFilter: document.querySelector("#frameworkFilter"),
   hiddenFilter: document.querySelector("#hiddenFilter"),
+  printFilter: document.querySelector("#printFilter"),
   clearFilters: document.querySelector("#clearFilters"),
   downloadJson: document.querySelector("#downloadJson"),
-  printReport: document.querySelector("#printReport")
+  printReport: document.querySelector("#printReport"),
+  printLayout: document.querySelector("#printLayout"),
+  printModal: document.querySelector("#printModal"),
+  printModalImage: document.querySelector("#printModalImage"),
+  printModalMeta: document.querySelector("#printModalMeta"),
+  closePrintModal: document.querySelector("#closePrintModal")
 };
 
 let audit = null;
@@ -120,6 +126,8 @@ const pagePassesFilters = (page) => {
   const status = els.statusFilter.value;
   const framework = els.frameworkFilter.value;
   const hidden = els.hiddenFilter.value;
+  const print = els.printFilter.value;
+  const hasPrint = Boolean(page.validationPrint?.image);
 
   if (!pageMatches(page, els.filter.value.trim())) return false;
   if (status === "failed" && stats.failures === 0) return false;
@@ -127,6 +135,8 @@ const pagePassesFilters = (page) => {
   if (framework !== "all" && !page.frameworkHints.includes(framework)) return false;
   if (hidden === "withHidden" && stats.hidden === 0) return false;
   if (hidden === "withoutHidden" && stats.hidden > 0) return false;
+  if (print === "withPrint" && !hasPrint) return false;
+  if (print === "withoutPrint" && hasPrint) return false;
   return true;
 };
 
@@ -141,6 +151,8 @@ const sortedPages = (pages) => {
     return String(aValue).localeCompare(String(bValue), "pt-BR", { numeric: true }) * direction;
   });
 };
+
+const filteredSortedPages = () => sortedPages((audit.pages || []).filter(pagePassesFilters));
 
 const badge = (label, kind = "") => `<span class="badge ${kind}">${text(label)}</span>`;
 
@@ -228,11 +240,25 @@ const compactFields = (page) => {
   `;
 };
 
+const validationPrint = (page) => {
+  if (!page.validationPrint) return `<p class="muted">Nenhum print gerado para esta página.</p>`;
+  if (page.validationPrint.image) {
+    return `
+      <button class="printThumb" type="button" data-print-url="${text(page.url)}">
+        <img src="${page.validationPrint.image}" alt="Print dos erros de validação">
+      </button>
+      <p class="muted">Capturado em ${formatDate(page.validationPrint.capturedAt)}.</p>
+    `;
+  }
+  return `<p class="muted">Print não capturado: ${text(page.validationPrint.error || "erro desconhecido")}.</p>`;
+};
+
 const renderPageRow = (page) => {
   const stats = pageStats(page);
   const failureKind = stats.failures ? "fail" : "ok";
   const title = page.title || "Página sem título";
   const frameworks = page.frameworkHints.length ? page.frameworkHints.map((item) => badge(item)).join("") : badge("nenhum");
+  const printBadge = page.validationPrint?.image ? badge("print", "warn") : "";
 
   return `
     <tr>
@@ -242,7 +268,7 @@ const renderPageRow = (page) => {
       </td>
       <td>${page.forms.length}</td>
       <td>${stats.fields}</td>
-      <td>${badge(stats.failures, failureKind)}</td>
+      <td><div class="chipLine">${badge(stats.failures, failureKind)}${printBadge}</div></td>
       <td>${badge(stats.hidden, stats.hidden ? "warn" : "")}</td>
       <td><div class="chipLine">${frameworks}</div></td>
       <td>
@@ -261,6 +287,10 @@ const renderPageRow = (page) => {
               <h3>Navegação</h3>
               <p class="muted">${stats.links} botão(ões)/link(s) com possível redirecionamento interno.</p>
             </section>
+            <section>
+              <h3>Print de validação</h3>
+              ${validationPrint(page)}
+            </section>
           </div>
         </details>
       </td>
@@ -269,7 +299,7 @@ const renderPageRow = (page) => {
 };
 
 const renderPages = () => {
-  const pages = sortedPages((audit.pages || []).filter(pagePassesFilters));
+  const pages = filteredSortedPages();
   els.resultCount.textContent = `${pages.length} de ${(audit.pages || []).length} página(s)`;
   updateSortIndicators();
   els.pagesList.innerHTML = pages.length
@@ -291,6 +321,215 @@ const renderErrors = () => {
   els.errors.innerHTML = errors.length
     ? errors.map((item) => `<div class="errorItem"><strong>${text(item.url)}</strong><span>${text(item.message)} · ${formatDate(item.at)}</span></div>`).join("")
     : `<p class="empty compact">Nenhum erro de rastreamento registrado.</p>`;
+};
+
+const openPrintModal = (page) => {
+  if (!page?.validationPrint?.image) return;
+  els.printModalImage.src = page.validationPrint.image;
+  els.printModalMeta.textContent = `${pageLabel(page)} · ${formatDate(page.validationPrint.capturedAt)}`;
+  els.printModal.hidden = false;
+  document.body.classList.add("modalOpen");
+};
+
+const closePrintModal = () => {
+  els.printModal.hidden = true;
+  els.printModalImage.removeAttribute("src");
+  els.printModalMeta.textContent = "";
+  document.body.classList.remove("modalOpen");
+};
+
+const filterSummaryText = () => {
+  const filters = [
+    els.filter.value.trim() ? `Texto: ${els.filter.value.trim()}` : "",
+    els.statusFilter.value !== "all" ? `Status: ${els.statusFilter.options[els.statusFilter.selectedIndex].text}` : "",
+    els.frameworkFilter.value !== "all" ? `Framework: ${els.frameworkFilter.value}` : "",
+    els.hiddenFilter.value !== "all" ? `Ocultos: ${els.hiddenFilter.options[els.hiddenFilter.selectedIndex].text}` : "",
+    els.printFilter.value !== "all" ? `Print: ${els.printFilter.options[els.printFilter.selectedIndex].text}` : ""
+  ].filter(Boolean);
+  return filters.length ? filters.join(" | ") : "Sem filtros aplicados";
+};
+
+const fieldRowsForPrint = (fields) => {
+  if (!fields.length) return `<p class="printMuted">Nenhum campo encontrado.</p>`;
+  return `
+    <table class="printTable">
+      <thead>
+        <tr><th>Campo</th><th>Tipo</th><th>Nome/ID</th><th>Regras</th></tr>
+      </thead>
+      <tbody>
+        ${fields.map((field) => {
+          const rules = [
+            field.required ? "obrigatório" : "",
+            field.hidden ? "oculto" : "",
+            field.readonly ? "somente leitura" : "",
+            field.disabled ? "desabilitado" : "",
+            field.minlength ? `minlength ${field.minlength}` : "",
+            field.maxlength ? `maxlength ${field.maxlength}` : "",
+            field.pattern ? `pattern ${field.pattern}` : "",
+            field.min ? `min ${field.min}` : "",
+            field.max ? `max ${field.max}` : ""
+          ].filter(Boolean);
+          return `
+            <tr>
+              <td>${text(field.label)}</td>
+              <td>${text(field.type)}</td>
+              <td>${text(field.name || field.id || field.selector)}</td>
+              <td>${text(rules.join(", ") || "sem regra")}</td>
+            </tr>
+          `;
+        }).join("")}
+      </tbody>
+    </table>
+  `;
+};
+
+const failureRowsForPrint = (page) => {
+  const failures = allTests(page).filter((test) => !test.passed);
+  if (!failures.length) return `<p class="printMuted">Sem falhas de validação client-side.</p>`;
+  return `
+    <table class="printTable">
+      <thead>
+        <tr><th>Campo</th><th>Caso</th><th>Esperado</th><th>Obtido</th><th>Mensagem</th></tr>
+      </thead>
+      <tbody>
+        ${failures.map((failure) => `
+          <tr>
+            <td>${text(failure.field)}</td>
+            <td>${text(failure.case)}</td>
+            <td>${text(failure.expected)}</td>
+            <td>${text(failure.actual)}</td>
+            <td>${text(failure.message || "")}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+};
+
+const hiddenListForPrint = (page) => {
+  if (!page.hiddenComponents.length) return `<p class="printMuted">Nenhum componente oculto registrado.</p>`;
+  return `
+    <ul class="printList">
+      ${page.hiddenComponents.map((item) => `<li>${text(item.tag)} | ${text(item.name || item.type || item.selector)} | ${text(item.reason)}</li>`).join("")}
+    </ul>
+  `;
+};
+
+const navigationListForPrint = (page) => {
+  if (!page.navigationTargets.length) return `<p class="printMuted">Nenhum botão/link interno registrado.</p>`;
+  return `
+    <ul class="printList">
+      ${page.navigationTargets.map((item) => `<li>${text(item.text || item.tag)} | ${text(item.url)}</li>`).join("")}
+    </ul>
+  `;
+};
+
+const printImageForPage = (page) => {
+  if (!page.validationPrint?.image) return `<p class="printMuted">Sem print anexado.</p>`;
+  return `
+    <figure class="printFigure">
+      <img src="${page.validationPrint.image}" alt="Print dos erros de validação">
+      <figcaption>Capturado em ${formatDate(page.validationPrint.capturedAt)}</figcaption>
+    </figure>
+  `;
+};
+
+const renderPrintLayout = () => {
+  const pages = filteredSortedPages();
+  const summary = audit.summary || {};
+  els.printLayout.innerHTML = `
+    <header class="printHeader">
+      <p>Form Test Auditor</p>
+      <h1>Relatório de Formulários</h1>
+      <div>${text(audit.origin || audit.rootUrl)}</div>
+      <div>Gerado em ${formatDate(new Date().toISOString())}</div>
+      <div>Filtros: ${text(filterSummaryText())}</div>
+      <div>Ordenação: ${text(sortState.key)} ${text(sortState.direction)}</div>
+    </header>
+
+    <section class="printSection">
+      <h2>Resumo</h2>
+      <table class="printTable printSummaryTable">
+        <tbody>
+          <tr><th>Páginas filtradas</th><td>${pages.length}</td><th>Páginas auditadas</th><td>${summary.pages || 0}</td></tr>
+          <tr><th>Formulários</th><td>${summary.forms || 0}</td><th>Campos</th><td>${summary.fields || 0}</td></tr>
+          <tr><th>Testes</th><td>${summary.tests || 0}</td><th>Falhas</th><td>${summary.failedTests || 0}</td></tr>
+          <tr><th>Ocultos</th><td>${(summary.hiddenFields || 0) + (summary.hiddenComponents || 0)}</td><th>Frameworks</th><td>${text((summary.frameworks || []).join(", ") || "Não identificado")}</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="printSection">
+      <h2>Páginas do filtro</h2>
+      <table class="printTable">
+        <thead>
+          <tr><th>Página</th><th>Forms</th><th>Campos</th><th>Falhas</th><th>Ocultos</th><th>Print</th><th>Frameworks</th></tr>
+        </thead>
+        <tbody>
+          ${pages.map((page) => {
+            const stats = pageStats(page);
+            return `
+              <tr>
+                <td>${text(pageLabel(page))}<br><span>${text(page.url)}</span></td>
+                <td>${page.forms.length}</td>
+                <td>${stats.fields}</td>
+                <td>${stats.failures}</td>
+                <td>${stats.hidden}</td>
+                <td>${page.validationPrint?.image ? "sim" : "não"}</td>
+                <td>${text(page.frameworkHints.join(", ") || "nenhum")}</td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
+    </section>
+
+    ${pages.map((page, index) => {
+      const stats = pageStats(page);
+      return `
+        <article class="printPage">
+          <h2>${index + 1}. ${text(pageLabel(page))}</h2>
+          <p class="printUrl">${text(page.url)}</p>
+          <table class="printTable printSummaryTable">
+            <tbody>
+              <tr><th>Formulários</th><td>${page.forms.length}</td><th>Campos</th><td>${stats.fields}</td></tr>
+              <tr><th>Falhas</th><td>${stats.failures}</td><th>Ocultos</th><td>${stats.hidden}</td></tr>
+              <tr><th>Links/Botões</th><td>${stats.links}</td><th>Frameworks</th><td>${text(page.frameworkHints.join(", ") || "nenhum")}</td></tr>
+            </tbody>
+          </table>
+
+          <section class="printSubsection">
+            <h3>Formulários e campos</h3>
+            ${page.forms.map((form) => `
+              <h4>${text(form.name || form.id || `Formulário ${form.index + 1}`)} | ${text(form.method)} | ${text(form.action)}</h4>
+              ${fieldRowsForPrint(form.fields)}
+            `).join("") || `<p class="printMuted">Nenhum formulário encontrado.</p>`}
+            ${page.orphanFields.length ? `<h4>Campos fora de formulário</h4>${fieldRowsForPrint(page.orphanFields)}` : ""}
+          </section>
+
+          <section class="printSubsection">
+            <h3>Falhas de validação</h3>
+            ${failureRowsForPrint(page)}
+          </section>
+
+          <section class="printSubsection">
+            <h3>Componentes ocultos</h3>
+            ${hiddenListForPrint(page)}
+          </section>
+
+          <section class="printSubsection">
+            <h3>Botões e links internos</h3>
+            ${navigationListForPrint(page)}
+          </section>
+
+          <section class="printSubsection">
+            <h3>Print de validação</h3>
+            ${printImageForPage(page)}
+          </section>
+        </article>
+      `;
+    }).join("")}
+  `;
 };
 
 const downloadJson = () => {
@@ -333,6 +572,7 @@ const resetFilters = () => {
   els.statusFilter.value = "all";
   els.frameworkFilter.value = "all";
   els.hiddenFilter.value = "all";
+  els.printFilter.value = "all";
   renderPages();
 };
 
@@ -355,8 +595,25 @@ els.filter.addEventListener("input", renderPages);
 els.statusFilter.addEventListener("change", renderPages);
 els.frameworkFilter.addEventListener("change", renderPages);
 els.hiddenFilter.addEventListener("change", renderPages);
+els.printFilter.addEventListener("change", renderPages);
 els.clearFilters.addEventListener("click", resetFilters);
 els.downloadJson.addEventListener("click", downloadJson);
-els.printReport.addEventListener("click", () => window.print());
+els.printReport.addEventListener("click", () => {
+  renderPrintLayout();
+  window.print();
+});
+els.closePrintModal.addEventListener("click", closePrintModal);
+els.printModal.addEventListener("click", (event) => {
+  if (event.target.matches("[data-close-modal]")) closePrintModal();
+});
+els.pagesList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-print-url]");
+  if (!button) return;
+  const page = (audit.pages || []).find((item) => item.url === button.dataset.printUrl);
+  openPrintModal(page);
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !els.printModal.hidden) closePrintModal();
+});
 
 loadAudit();

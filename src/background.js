@@ -142,6 +142,154 @@ const waitForTab = (tabId) =>
     chrome.tabs.onUpdated.addListener(listener);
   });
 
+const validationFailures = (page) => [
+  ...page.forms.flatMap((form) => form.tests.flatMap((test) =>
+    test.cases
+      .filter((item) => !item.passed)
+      .map((item) => ({
+        field: test.field,
+        case: item.case,
+        expected: item.expected,
+        actual: item.actual,
+        message: item.message
+      }))
+  )),
+  ...page.orphanFields.flatMap((field) =>
+    (field.tests || [])
+      .filter((item) => !item.passed)
+      .map((item) => ({
+        field: field.label,
+        case: item.case,
+        expected: item.expected,
+        actual: item.actual,
+        message: item.message
+      }))
+  )
+];
+
+const wait = (duration) => new Promise((resolve) => setTimeout(resolve, duration));
+
+const debuggerCommand = (target, method, params = {}) =>
+  new Promise((resolve, reject) => {
+    chrome.debugger.sendCommand(target, method, params, (result) => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        reject(new Error(error.message));
+        return;
+      }
+      resolve(result);
+    });
+  });
+
+const attachDebugger = (target) =>
+  new Promise((resolve, reject) => {
+    chrome.debugger.attach(target, "1.3", () => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        reject(new Error(error.message));
+        return;
+      }
+      resolve();
+    });
+  });
+
+const detachDebugger = (target) =>
+  new Promise((resolve) => {
+    chrome.debugger.detach(target, () => resolve());
+  });
+
+const showValidationOverlay = (failures) => {
+  const existing = document.querySelector("#form-test-auditor-print-overlay");
+  if (existing) existing.remove();
+
+  const overlay = document.createElement("aside");
+  overlay.id = "form-test-auditor-print-overlay";
+  overlay.style.cssText = [
+    "position:fixed",
+    "right:18px",
+    "bottom:18px",
+    "z-index:2147483647",
+    "max-width:min(520px,calc(100vw - 36px))",
+    "max-height:55vh",
+    "overflow:auto",
+    "padding:14px",
+    "border:2px solid #b42318",
+    "border-radius:8px",
+    "background:#fff",
+    "color:#17202a",
+    "box-shadow:0 18px 48px rgba(16,24,40,.22)",
+    "font:13px/1.4 system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"
+  ].join(";");
+
+  const title = document.createElement("strong");
+  title.textContent = `Form Test Auditor: ${failures.length} erro(s) de validação`;
+  title.style.cssText = "display:block;margin-bottom:8px;color:#b42318;font-size:14px";
+  overlay.appendChild(title);
+
+  const list = document.createElement("ol");
+  list.style.cssText = "display:grid;gap:6px;margin:0;padding-left:20px";
+  failures.slice(0, 8).forEach((failure) => {
+    const item = document.createElement("li");
+    item.textContent = `${failure.field}: ${failure.case} esperava ${failure.expected}, recebeu ${failure.actual}${failure.message ? ` - ${failure.message}` : ""}`;
+    list.appendChild(item);
+  });
+  overlay.appendChild(list);
+  document.documentElement.appendChild(overlay);
+};
+
+const removeValidationOverlay = () => {
+  document.querySelector("#form-test-auditor-print-overlay")?.remove();
+};
+
+const captureValidationPrint = async (tab, page) => {
+  const failures = validationFailures(page);
+  if (!failures.length) return null;
+  const target = { tabId: tab.id };
+  let attached = false;
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: showValidationOverlay,
+      args: [failures]
+    });
+    await wait(500);
+    await attachDebugger(target);
+    attached = true;
+    await debuggerCommand(target, "Page.enable");
+    const screenshot = await debuggerCommand(target, "Page.captureScreenshot", {
+      format: "png",
+      fromSurface: true,
+      captureBeyondViewport: false
+    });
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: removeValidationOverlay
+    }).catch(() => undefined);
+
+    return {
+      capturedAt: new Date().toISOString(),
+      reason: "validation-error",
+      failures: failures.slice(0, 20),
+      image: `data:image/png;base64,${screenshot.data}`,
+      captureMode: "hidden-debugger"
+    };
+  } catch (error) {
+    return {
+      capturedAt: new Date().toISOString(),
+      reason: "validation-error",
+      error: error.message,
+      failures: failures.slice(0, 20)
+    };
+  } finally {
+    if (attached) await detachDebugger(target);
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: removeValidationOverlay
+    }).catch(() => undefined);
+  }
+};
+
 const auditPage = async (url) => {
   const tab = await chrome.tabs.create({ url, active: false });
   try {
@@ -150,7 +298,12 @@ const auditPage = async (url) => {
       target: { tabId: tab.id },
       files: ["src/auditor.js"]
     });
-    return result?.result;
+    const page = result?.result;
+    if (page) {
+      const validationPrint = await captureValidationPrint(tab, page);
+      if (validationPrint) page.validationPrint = validationPrint;
+    }
+    return page;
   } finally {
     if (tab.id) await chrome.tabs.remove(tab.id).catch(() => undefined);
   }
