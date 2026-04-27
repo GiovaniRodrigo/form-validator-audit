@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Form Test Auditor</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="app">
+      <header class="header">
+        <div>
+          <h1>Form Test Auditor</h1>
+          <p id="origin">Aguardando página ativa</p>
+        </div>
+        <span id="status" class="status">Pronto</span>
+      </header>
+
+      <section class="controls" aria-label="Configurações da auditoria">
+        <label>
+          <span>Páginas</span>
+          <input id="maxPages" type="number" min="1" max="250" value="50">
+        </label>
+        <label>
+          <span>Profundidade</span>
+          <input id="maxDepth" type="number" min="1" max="10" value="4">
+        </label>
+        <button id="start" type="button">Iniciar auditoria</button>
+      </section>
+
+      <section class="metrics" aria-label="Resumo">
+        <div><strong id="pages">0</strong><span>Páginas</span></div>
+        <div><strong id="forms">0</strong><span>Forms</span></div>
+        <div><strong id="fields">0</strong><span>Campos</span></div>
+        <div><strong id="failed">0</strong><span>Falhas</span></div>
+      </section>
+
+      <section class="report">
+        <div class="reportHeader">
+          <h2>Relatório</h2>
+          <div class="reportActions">
+            <button id="openReport" type="button" disabled>Abrir relatório</button>
+            <button id="download" type="button" disabled>Exportar JSON</button>
+          </div>
+        </div>
+        <div id="details" class="details">Execute uma auditoria para listar páginas, campos e testes.</div>
+      </section>
+    </main>
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>

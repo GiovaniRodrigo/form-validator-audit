@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Relatório de Formulários</title>
+    <link rel="stylesheet" href="report.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Form Test Auditor</p>
+        <h1>Relatório de Formulários</h1>
+        <p id="subtitle">Carregando auditoria...</p>
+      </div>
+      <div class="actions">
+        <button id="downloadJson" type="button">Baixar JSON</button>
+        <button id="printReport" type="button">Imprimir</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="summary" aria-label="Resumo da auditoria">
+        <article><strong id="pages">0</strong><span>Páginas analisadas</span></article>
+        <article><strong id="forms">0</strong><span>Formulários</span></article>
+        <article><strong id="fields">0</strong><span>Campos</span></article>
+        <article><strong id="failed">0</strong><span>Testes com falha</span></article>
+        <article><strong id="hidden">0</strong><span>Itens ocultos</span></article>
+      </section>
+
+      <section class="section">
+        <div class="sectionHeader">
+          <h2>Leitura Geral</h2>
+          <span id="statusBadge" class="badge">Pronto</span>
+        </div>
+        <div id="overview" class="overview"></div>
+      </section>
+
+      <section class="section">
+        <div class="sectionHeader">
+          <h2>Páginas e Formulários</h2>
+          <input id="filter" type="search" placeholder="Filtrar por URL, campo ou erro">
+        </div>
+        <div id="pagesList" class="pagesList"></div>
+      </section>
+
+      <section class="section">
+        <div class="sectionHeader">
+          <h2>Erros de Rastreamento</h2>
+        </div>
+        <div id="errors" class="errors"></div>
+      </section>
+    </main>
+
+    <script src="report.js" type="module"></script>
+  </body>
+</html>

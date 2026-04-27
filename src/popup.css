@@ -1,0 +1,257 @@
+:root {
+  color-scheme: light;
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --text: #17202a;
+  --muted: #667085;
+  --line: #d9dee7;
+  --brand: #0f766e;
+  --brand-strong: #115e59;
+  --danger: #b42318;
+  --ok: #027a48;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 420px;
+  min-height: 560px;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+}
+
+.header,
+.controls,
+.metrics,
+.report {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+h2 {
+  font-size: 15px;
+}
+
+#origin {
+  max-width: 260px;
+  margin-top: 4px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.status {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.status.running {
+  border-color: #99f6e4;
+  color: var(--brand-strong);
+  background: #f0fdfa;
+}
+
+.status.completed {
+  border-color: #bbf7d0;
+  color: var(--ok);
+  background: #f0fdf4;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 12px;
+}
+
+.controls label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.controls input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px;
+  color: var(--text);
+}
+
+.controls button {
+  grid-column: 1 / -1;
+  border: 0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: white;
+  background: var(--brand);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.controls button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.metrics div {
+  min-width: 0;
+  padding: 12px 8px;
+  border-right: 1px solid var(--line);
+  text-align: center;
+}
+
+.metrics div:last-child {
+  border-right: 0;
+}
+
+.metrics strong,
+.metrics span {
+  display: block;
+}
+
+.metrics strong {
+  font-size: 20px;
+}
+
+.metrics span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.report {
+  min-height: 270px;
+  overflow: hidden;
+}
+
+.reportHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.reportActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.reportActions button {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 9px;
+  background: white;
+  cursor: pointer;
+}
+
+.reportActions button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.details {
+  max-height: 330px;
+  overflow: auto;
+  padding: 12px;
+  color: var(--muted);
+}
+
+.page {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.page:first-child {
+  padding-top: 0;
+}
+
+.page:last-child {
+  border-bottom: 0;
+}
+
+.page h3 {
+  margin: 0 0 4px;
+  color: var(--text);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.page p {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.badgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.badge {
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: #eef2f6;
+  color: #344054;
+  font-size: 11px;
+}
+
+.badge.fail {
+  background: #fef3f2;
+  color: var(--danger);
+}
+
+.error {
+  margin-top: 8px;
+  color: var(--danger);
+  font-size: 12px;
+}
