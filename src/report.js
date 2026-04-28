@@ -424,6 +424,38 @@ const navigationListForPrint = (page) => {
   `;
 };
 
+const pagesWithPrintImages = (pages) => pages.filter((page) => page.validationPrint?.image);
+
+const printImagesGallery = (pages) => {
+  const pagesWithImages = pagesWithPrintImages(pages);
+  if (!pagesWithImages.length) {
+    return `
+      <section class="printSection">
+        <h2>Imagens anexadas</h2>
+        <p class="printMuted">Nenhuma imagem anexada para as páginas filtradas.</p>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="printSection printImageGallerySection">
+      <h2>Imagens anexadas</h2>
+      <div class="printImageGrid">
+        ${pagesWithImages.map((page) => `
+          <figure class="printImageCard">
+            <img src="${page.validationPrint.image}" alt="Print de validação de ${text(pageLabel(page))}">
+            <figcaption>
+              <strong>${text(pageLabel(page))}</strong>
+              <span>${text(page.url)}</span>
+              <span>Capturado em ${formatDate(page.validationPrint.capturedAt)}</span>
+            </figcaption>
+          </figure>
+        `).join("")}
+      </div>
+    </section>
+  `;
+};
+
 const printImageForPage = (page) => {
   if (!page.validationPrint?.image) return `<p class="printMuted">Sem print anexado.</p>`;
   return `
@@ -484,6 +516,8 @@ const renderPrintLayout = () => {
       </table>
     </section>
 
+    ${printImagesGallery(pages)}
+
     ${pages.map((page, index) => {
       const stats = pageStats(page);
       return `
@@ -530,6 +564,19 @@ const renderPrintLayout = () => {
       `;
     }).join("")}
   `;
+};
+
+const waitForPrintImages = () => {
+  const images = [...els.printLayout.querySelectorAll("img")];
+  if (!images.length) return Promise.resolve();
+
+  return Promise.all(images.map((image) => {
+    if (image.complete && image.naturalWidth > 0) return Promise.resolve();
+    return new Promise((resolve) => {
+      image.addEventListener("load", resolve, { once: true });
+      image.addEventListener("error", resolve, { once: true });
+    });
+  }));
 };
 
 const downloadJson = () => {
@@ -598,8 +645,9 @@ els.hiddenFilter.addEventListener("change", renderPages);
 els.printFilter.addEventListener("change", renderPages);
 els.clearFilters.addEventListener("click", resetFilters);
 els.downloadJson.addEventListener("click", downloadJson);
-els.printReport.addEventListener("click", () => {
+els.printReport.addEventListener("click", async () => {
   renderPrintLayout();
+  await waitForPrintImages();
   window.print();
 });
 els.closePrintModal.addEventListener("click", closePrintModal);
