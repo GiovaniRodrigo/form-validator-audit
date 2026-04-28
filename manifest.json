@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Form Test Auditor",
-  "description": "Audita formulários de um domínio, rastreia páginas relacionadas e gera relatório de campos corretos, incorretos e ocultos.",
+  "description": "Audita formulários de um domínio, rastreia páginas relacionadas e gera relatório.",
   "version": "0.1.0",
   "permissions": [
     "activeTab",
@@ -14,11 +14,16 @@
     "<all_urls>"
   ],
   "background": {
-    "service_worker": "src/background.js",
+    "scripts": ["src/background.js"],
     "type": "module"
   },
   "action": {
     "default_popup": "src/popup.html",
     "default_title": "Form Test Auditor"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "form-test-auditor@meu-dominio.com"
+    }
   }
 }
