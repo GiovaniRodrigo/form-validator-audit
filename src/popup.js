@@ -1,3 +1,5 @@
+import browser from "./browser-api.js";
+
 const els = {
   origin: document.querySelector("#origin"),
   status: document.querySelector("#status"),
@@ -17,7 +19,7 @@ let currentAuditId = null;
 let pollTimer = null;
 let latestAudit = null;
 
-const send = (message) => chrome.runtime.sendMessage(message);
+const send = (message) => browser.runtime.sendMessage(message);
 
 const setStatus = (status) => {
   els.status.textContent = status === "running" ? "Rodando" : status === "completed" ? "Concluído" : "Pronto";
@@ -120,9 +122,9 @@ els.download.addEventListener("click", () => {
 
 els.openReport.addEventListener("click", async () => {
   if (!latestAudit) return;
-  await chrome.storage.local.set({ latestAudit });
-  const url = chrome.runtime.getURL(`src/report.html#audit=${encodeURIComponent(latestAudit.id || "")}`);
-  await chrome.tabs.create({ url });
+  await browser.storage.local.set({ latestAudit });
+  const url = new URL(`report.html#audit=${encodeURIComponent(latestAudit.id || "")}`, location.href).href;
+  await browser.tabs.create({ url });
 });
 
 send({ type: "GET_AUDIT" }).then((response) => {

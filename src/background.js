@@ -1,3 +1,5 @@
+import browser from "./browser-api.js";
+
 const DEFAULT_LIMITS = {
   maxPages: 50,
   maxDepth: 4
@@ -128,18 +130,18 @@ const discoverPublishedUrls = async (state) => {
 const waitForTab = (tabId) =>
   new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
-      chrome.tabs.onUpdated.removeListener(listener);
+      browser.tabs.onUpdated.removeListener(listener);
       reject(new Error("Tempo excedido ao carregar a página"));
     }, 30000);
 
     const listener = (updatedTabId, changeInfo) => {
       if (updatedTabId === tabId && changeInfo.status === "complete") {
         clearTimeout(timeout);
-        chrome.tabs.onUpdated.removeListener(listener);
+        browser.tabs.onUpdated.removeListener(listener);
         resolve();
       }
     };
-    chrome.tabs.onUpdated.addListener(listener);
+    browser.tabs.onUpdated.addListener(listener);
   });
 
 const validationFailures = (page) => [
@@ -169,10 +171,15 @@ const validationFailures = (page) => [
 
 const wait = (duration) => new Promise((resolve) => setTimeout(resolve, duration));
 
-const debuggerCommand = (target, method, params = {}) =>
-  new Promise((resolve, reject) => {
-    chrome.debugger.sendCommand(target, method, params, (result) => {
-      const error = chrome.runtime.lastError;
+const debuggerApi = browser.debugger || globalThis.chrome?.debugger;
+
+const debuggerCommand = (target, method, params = {}) => {
+  if (browser.debugger?.sendCommand) return browser.debugger.sendCommand(target, method, params);
+  if (!debuggerApi) return Promise.reject(new Error("API debugger indisponível neste navegador."));
+
+  return new Promise((resolve, reject) => {
+    debuggerApi.sendCommand(target, method, params, (result) => {
+      const error = globalThis.chrome?.runtime?.lastError;
       if (error) {
         reject(new Error(error.message));
         return;
@@ -180,11 +187,15 @@ const debuggerCommand = (target, method, params = {}) =>
       resolve(result);
     });
   });
+};
 
-const attachDebugger = (target) =>
-  new Promise((resolve, reject) => {
-    chrome.debugger.attach(target, "1.3", () => {
-      const error = chrome.runtime.lastError;
+const attachDebugger = (target) => {
+  if (browser.debugger?.attach) return browser.debugger.attach(target, "1.3");
+  if (!debuggerApi) return Promise.reject(new Error("API debugger indisponível neste navegador."));
+
+  return new Promise((resolve, reject) => {
+    debuggerApi.attach(target, "1.3", () => {
+      const error = globalThis.chrome?.runtime?.lastError;
       if (error) {
         reject(new Error(error.message));
         return;
@@ -192,11 +203,16 @@ const attachDebugger = (target) =>
       resolve();
     });
   });
+};
 
-const detachDebugger = (target) =>
-  new Promise((resolve) => {
-    chrome.debugger.detach(target, () => resolve());
+const detachDebugger = (target) => {
+  if (browser.debugger?.detach) return browser.debugger.detach(target).catch(() => undefined);
+  if (!debuggerApi) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    debuggerApi.detach(target, () => resolve());
   });
+};
 
 const showValidationOverlay = (failures) => {
   const existing = document.querySelector("#form-test-auditor-print-overlay");
@@ -248,7 +264,7 @@ const captureValidationPrint = async (tab, page) => {
   let attached = false;
 
   try {
-    await chrome.scripting.executeScript({
+    await browser.scripting.executeScript({
       target: { tabId: tab.id },
       func: showValidationOverlay,
       args: [failures]
@@ -262,7 +278,7 @@ const captureValidationPrint = async (tab, page) => {
       fromSurface: true,
       captureBeyondViewport: false
     });
-    await chrome.scripting.executeScript({
+    await browser.scripting.executeScript({
       target: { tabId: tab.id },
       func: removeValidationOverlay
     }).catch(() => undefined);
@@ -283,7 +299,7 @@ const captureValidationPrint = async (tab, page) => {
     };
   } finally {
     if (attached) await detachDebugger(target);
-    await chrome.scripting.executeScript({
+    await browser.scripting.executeScript({
       target: { tabId: tab.id },
       func: removeValidationOverlay
     }).catch(() => undefined);
@@ -291,10 +307,10 @@ const captureValidationPrint = async (tab, page) => {
 };
 
 const auditPage = async (url) => {
-  const tab = await chrome.tabs.create({ url, active: false });
+  const tab = await browser.tabs.create({ url, active: false });
   try {
     await waitForTab(tab.id);
-    const [result] = await chrome.scripting.executeScript({
+    const [result] = await browser.scripting.executeScript({
       target: { tabId: tab.id },
       files: ["src/auditor.js"]
     });
@@ -305,7 +321,7 @@ const auditPage = async (url) => {
     }
     return page;
   } finally {
-    if (tab.id) await chrome.tabs.remove(tab.id).catch(() => undefined);
+    if (tab.id) await browser.tabs.remove(tab.id).catch(() => undefined);
   }
 };
 
@@ -334,45 +350,38 @@ const runQueue = async (auditId) => {
           at: new Date().toISOString()
         });
       }
-      await chrome.storage.local.set({ latestAudit: publicState(state) });
+      await browser.storage.local.set({ latestAudit: publicState(state) });
     }
     state.status = "completed";
     state.finishedAt = new Date().toISOString();
-    await chrome.storage.local.set({ latestAudit: publicState(state) });
+    await browser.storage.local.set({ latestAudit: publicState(state) });
   } finally {
     state.workerActive = false;
   }
 };
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+browser.runtime.onMessage.addListener(async (message) => {
   if (message.type === "START_AUDIT") {
-    chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
-      if (!tab?.url || !/^https?:/.test(tab.url)) {
-        sendResponse({ ok: false, error: "Abra uma página HTTP/HTTPS para iniciar a auditoria." });
-        return;
-      }
-      sendResponse({ ok: true, audit: createAudit(tab, message.options) });
-    });
-    return true;
+    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.url || !/^https?:/.test(tab.url)) {
+      return { ok: false, error: "Abra uma página HTTP/HTTPS para iniciar a auditoria." };
+    }
+    return { ok: true, audit: createAudit(tab, message.options) };
   }
 
   if (message.type === "GET_AUDIT") {
     const current = message.id ? audits.get(message.id) : [...audits.values()].at(-1);
     if (current) {
-      sendResponse({ ok: true, audit: publicState(current) });
-      return false;
+      return { ok: true, audit: publicState(current) };
     }
-    chrome.storage.local.get("latestAudit").then(({ latestAudit }) => {
-      sendResponse({ ok: true, audit: latestAudit || null });
-    });
-    return true;
+    const { latestAudit } = await browser.storage.local.get("latestAudit");
+    return { ok: true, audit: latestAudit || null };
   }
 
   if (message.type === "EXPORT_AUDIT") {
     const current = message.id ? audits.get(message.id) : [...audits.values()].at(-1);
-    sendResponse({ ok: Boolean(current), audit: current ? publicState(current) : null });
-    return false;
+    return { ok: Boolean(current), audit: current ? publicState(current) : null };
   }
 
-  return false;
+  return { ok: false, error: "Mensagem desconhecida." };
 });

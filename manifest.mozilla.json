@@ -14,11 +14,23 @@
     "<all_urls>"
   ],
   "background": {
-    "service_worker": "src/background.js",
+    "scripts": [
+      "src/background.js"
+    ],
     "type": "module"
   },
   "action": {
     "default_popup": "src/popup.html",
     "default_title": "Form Test Auditor"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "form-test-auditor@meu-dominio.com",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
+    }
   }
 }

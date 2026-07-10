@@ -1,6 +1,6 @@
 # Form Test Auditor
 
-Extensão Chrome em Manifest V3 para rastrear páginas de um domínio e gerar relatório de formulários, campos, componentes ocultos, botões/links de navegação e testes de validação client-side.
+Extensão WebExtension em Manifest V3 para Chrome, Firefox e Edge, com build separado por navegador e API padronizada por um adaptador local.
 
 ## Recursos
 
@@ -18,12 +18,20 @@ Extensão Chrome em Manifest V3 para rastrear páginas de um domínio e gerar re
 
 ## Como usar
 
-1. Abra `chrome://extensions`.
-2. Ative o modo de desenvolvedor.
-3. Clique em `Carregar sem compactação`.
-4. Selecione esta pasta.
+1. Instale as dependências com `npm install`.
+2. Gere os pacotes com `npm run build`.
+3. Para Chrome/Edge, abra `chrome://extensions`, ative o modo de desenvolvedor, clique em `Carregar sem compactação` e selecione `dist/chrome`.
+4. Para Firefox, abra `about:debugging#/runtime/this-firefox`, clique em `Carregar extensão temporária` e selecione `dist/firefox/manifest.json`.
 5. Abra a página inicial do domínio que deseja auditar.
 6. Clique no ícone da extensão e inicie a auditoria.
+
+## Builds
+
+- `npm run build`: gera `dist/chrome` e `dist/firefox`.
+- `npm run build:chrome`: gera apenas o pacote para Chrome/Edge.
+- `npm run build:firefox`: gera apenas o pacote para Firefox.
+
+O código-fonte usa um módulo local em `src/browser-api.js` para expor a API `browser` tanto em navegadores que já têm esse namespace quanto no Chrome, que fornece `chrome.*`. O `esbuild` empacota esse adaptador nos arquivos finais.
 
 ## Observações
 

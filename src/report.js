@@ -1,3 +1,5 @@
+import browser from "./browser-api.js";
+
 const els = {
   subtitle: document.querySelector("#subtitle"),
   statusBadge: document.querySelector("#statusBadge"),
@@ -34,7 +36,7 @@ let sortState = {
   direction: "desc"
 };
 
-const send = (message) => chrome.runtime.sendMessage(message);
+const send = (message) => browser.runtime.sendMessage(message);
 const rawText = (value) => String(value ?? "");
 
 const text = (value) =>
@@ -597,7 +599,7 @@ const loadAudit = async () => {
   const response = await send({ type: "GET_AUDIT", id });
   audit = response?.audit;
   if (!audit) {
-    const stored = await chrome.storage.local.get("latestAudit");
+    const stored = await browser.storage.local.get("latestAudit");
     audit = stored.latestAudit;
   }
 
